@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #f1f4f9;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(219, 234, 254, 0.6) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(224, 231, 255, 0.5) 0%, transparent 40%);
+    color: #1e293b;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+}
+
+/* Soft Neumorphic & 3D Lighting utilities */
+.neumorphic-card {
+  background: #ffffff;
+  box-shadow: 
+    0 20px 40px -15px rgba(15, 23, 42, 0.07),
+    0 0 1px 1px rgba(255, 255, 255, 0.9) inset,
+    0 1px 2px 0 rgba(15, 23, 42, 0.04);
+}
+
+.neumorphic-inset {
+  background: #f8fafc;
+  box-shadow: inset 0 2px 4px 0 rgba(15, 23, 42, 0.04);
+}
+
+.sphere-glow {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 50%, #93c5fd 100%);
+  box-shadow: 
+    0 12px 28px -6px rgba(59, 130, 246, 0.35),
+    0 -3px 8px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 6px 0 rgba(37, 99, 235, 0.2) inset;
+}
+
+.floating-button-shadow {
+  box-shadow: 
+    0 10px 25px -5px rgba(15, 23, 42, 0.12),
+    0 4px 10px -2px rgba(15, 23, 42, 0.05);
+}
+
+@keyframes pulse-sphere {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 12px 28px -6px rgba(59, 130, 246, 0.35), 0 -3px 8px 0 rgba(255, 255, 255, 0.9) inset;
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 16px 36px -6px rgba(59, 130, 246, 0.5), 0 -3px 8px 0 rgba(255, 255, 255, 0.9) inset;
+  }
+}
+
+.animate-sphere {
+  animation: pulse-sphere 3s ease-in-out infinite;
+}
+
+@keyframes eqBounce {
+  from { height: 25%; }
+  to { height: 100%; }
+}
+
+.animate-eq-1 { animation: eqBounce 0.8s ease-in-out infinite alternate 0.1s; }
+.animate-eq-2 { animation: eqBounce 0.8s ease-in-out infinite alternate 0.3s; }
+.animate-eq-3 { animation: eqBounce 0.8s ease-in-out infinite alternate 0.2s; }
+.animate-eq-4 { animation: eqBounce 0.8s ease-in-out infinite alternate 0.4s; }

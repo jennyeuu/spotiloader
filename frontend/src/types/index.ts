@@ -4,7 +4,7 @@ export interface TrackDetail {
   track_id?: string;
   title: string;
   artist: string;
-  status: 'in_progress' | 'completed' | 'failed';
+  status: 'ready' | 'in_progress' | 'completed' | 'failed';
   matched_title?: string | null;
   match_score?: number | null;
   file_path?: string | null;
@@ -14,7 +14,7 @@ export interface TrackDetail {
 
 export interface JobStatusResponse {
   job_id: string;
-  status: 'PENDING' | 'PROGRESS' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILURE';
+  status: 'READY' | 'PENDING' | 'PROGRESS' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILURE';
   total_tracks: number;
   completed_tracks: number;
   failed_tracks: number;

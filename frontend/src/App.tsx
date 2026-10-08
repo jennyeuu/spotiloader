@@ -44,6 +44,36 @@ export const App: React.FC = () => {
     }
   };
 
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState<boolean>(false);
+
+  const startPolling = (jobId?: string) => {
+    const id = jobId || currentJobId;
+    if (!id) return;
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/playlist/status/${id}`);
+        if (!res.ok) return;
+        const data: JobStatusResponse = await res.json();
+        setJobStatus(data);
+
+        if (data.status === 'SUCCESS' || data.status === 'FAILURE' || data.status === 'PARTIAL_SUCCESS') {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          if (data.status === 'SUCCESS') {
+            addToast('All tracks downloaded, converted, and tagged!', 'success');
+          }
+        }
+      } catch (e) {
+        console.error('Polling error:', e);
+      }
+    };
+
+    poll();
+    pollIntervalRef.current = window.setInterval(poll, 1500);
+  };
+
   const handleUrlSubmit = async (url: string) => {
     setIsLoading(true);
     try {
@@ -64,7 +94,15 @@ export const App: React.FC = () => {
 
       setPlaylistTitle(data.playlist_title);
       setCurrentJobId(data.job_id);
-      addToast(`Found "${data.playlist_title}" (${data.total_tracks} tracks). Download started!`, 'success');
+      addToast(`Loaded "${data.playlist_title}" (${data.total_tracks} tracks). Ready for download!`, 'success');
+
+      // fetch loaded status immediately and start polling
+      const sRes = await fetch(`/api/playlist/status/${data.job_id}`);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setJobStatus(sData);
+      }
+      startPolling(data.job_id);
     } catch (err: any) {
       addToast(err.message || 'Error submitting Spotify URL', 'error');
     } finally {
@@ -93,7 +131,14 @@ export const App: React.FC = () => {
 
       setPlaylistTitle(data.playlist_title);
       setCurrentJobId(data.job_id);
-      addToast(`Parsed "${data.playlist_title}" (${data.total_tracks} tracks). Download started!`, 'success');
+      addToast(`Loaded "${data.playlist_title}" (${data.total_tracks} tracks). Ready for download!`, 'success');
+
+      const sRes = await fetch(`/api/playlist/status/${data.job_id}`);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setJobStatus(sData);
+      }
+      startPolling(data.job_id);
     } catch (err: any) {
       addToast(err.message || 'Error processing CSV file', 'error');
     } finally {
@@ -101,7 +146,47 @@ export const App: React.FC = () => {
     }
   };
 
-  const [isRetrying, setIsRetrying] = useState<boolean>(false);
+  const handleDownloadAll = async () => {
+    if (!currentJobId) return;
+    setIsDownloadingAll(true);
+    addToast('Starting batch download for all remaining tracks...', 'info');
+    try {
+      const res = await fetch(`/api/playlist/download-all/${currentJobId}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to start batch download.');
+      }
+      const updated: JobStatusResponse = await res.json();
+      setJobStatus(updated);
+      startPolling();
+    } catch (err: any) {
+      addToast(err.message || 'Error starting download all', 'error');
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
+  const handleDownloadSingleTrack = async (trackId?: string) => {
+    if (!currentJobId) return;
+    addToast('Downloading song into playlist folder...', 'info');
+    try {
+      const targetId = trackId || '0';
+      const res = await fetch(`/api/playlist/download-track/${currentJobId}/${encodeURIComponent(targetId)}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to download track.');
+      }
+      const updated: JobStatusResponse = await res.json();
+      setJobStatus(updated);
+      startPolling();
+    } catch (err: any) {
+      addToast(err.message || 'Error downloading song', 'error');
+    }
+  };
 
   const handleRetryFailed = async () => {
     if (!currentJobId) return;
@@ -117,24 +202,7 @@ export const App: React.FC = () => {
       }
       const updated: JobStatusResponse = await res.json();
       setJobStatus(updated);
-
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = window.setInterval(async () => {
-        try {
-          const pRes = await fetch(`/api/playlist/status/${currentJobId}`);
-          if (!pRes.ok) return;
-          const pData: JobStatusResponse = await pRes.json();
-          setJobStatus(pData);
-          if (pData.status === 'SUCCESS' || pData.status === 'PARTIAL_SUCCESS' || pData.status === 'FAILURE') {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            if (pData.status === 'SUCCESS') {
-              addToast('All failed tracks successfully recovered and tagged!', 'success');
-            }
-          }
-        } catch (err) {
-          console.error('Polling retry error:', err);
-        }
-      }, 1500);
+      startPolling();
     } catch (err: any) {
       addToast(err.message || 'Error triggering retry', 'error');
     } finally {
@@ -142,31 +210,10 @@ export const App: React.FC = () => {
     }
   };
 
-  // poll download job progress
+  // poll download job progress on mount/jobId change
   useEffect(() => {
     if (!currentJobId) return;
-
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/playlist/status/${currentJobId}`);
-        if (!res.ok) return;
-        const data: JobStatusResponse = await res.json();
-        setJobStatus(data);
-
-        if (data.status === 'SUCCESS' || data.status === 'PARTIAL_SUCCESS' || data.status === 'FAILURE') {
-          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          if (data.status === 'SUCCESS') {
-            addToast('All tracks downloaded, converted, and tagged!', 'success');
-          }
-        }
-      } catch (e) {
-        console.error('Polling error:', e);
-      }
-    };
-
-    poll();
-    pollIntervalRef.current = window.setInterval(poll, 1500);
-
+    startPolling(currentJobId);
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
@@ -189,7 +236,7 @@ export const App: React.FC = () => {
               }`}
             >
               <Link2 className="w-4 h-4 stroke-[2.5]" />
-              Spotify URL Link
+              Spotify / YouTube Link
             </button>
 
             <button
@@ -229,6 +276,9 @@ export const App: React.FC = () => {
           }}
           onRetryFailed={handleRetryFailed}
           isRetrying={isRetrying}
+          onDownloadAll={handleDownloadAll}
+          isDownloadingAll={isDownloadingAll}
+          onDownloadTrack={handleDownloadSingleTrack}
         />
 
         <BottomDock

@@ -8,9 +8,10 @@ interface UrlInputFormProps {
 }
 
 const SAMPLE_PLAYLISTS = [
-  { name: "Today's Top Hits", url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' },
-  { name: 'RapCaviar', url: 'https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd' },
-  { name: 'Chill Hits', url: 'https://open.spotify.com/playlist/37i9dQZF1DX4WYpdgoIcn6' },
+  { name: 'Blinding Lights (Spotify)', url: 'https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b' },
+  { name: "Today's Top Hits (Spotify)", url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' },
+  { name: 'Chill Hits (Spotify)', url: 'https://open.spotify.com/playlist/37i9dQZF1DX4WYpdgoIcn6' },
+  { name: 'Never Gonna Give You Up (YouTube)', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
 ];
 
 export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading, onCancel }) => {
@@ -31,7 +32,7 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
     <div>
       <div className="border-2 border-dashed border-slate-200/90 rounded-3xl p-8 sm:p-10 text-center bg-[#fafbfc] transition-all">
         <div className="font-bold text-slate-800 text-lg mb-6 tracking-tight">
-          Paste Spotify URL or URI here
+          Paste Spotify or YouTube URL here
         </div>
 
         <div className="w-20 h-20 rounded-full sphere-glow text-blue-600 flex items-center justify-center mx-auto mb-6 animate-sphere">
@@ -39,7 +40,7 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
         </div>
 
         <div className="text-slate-400 text-xs sm:text-sm max-w-sm mx-auto leading-relaxed mb-6">
-          Paste any public Spotify <strong className="text-slate-600">Playlist</strong>, <strong className="text-slate-600">Album</strong>, or <strong className="text-slate-600">Track</strong> link.
+          Paste any public <strong className="text-slate-600">Spotify</strong> or <strong className="text-slate-600">YouTube</strong> Playlist, Album, Video, or Track link.
         </div>
 
         <div className="relative max-w-md mx-auto">
@@ -47,7 +48,7 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://open.spotify.com/playlist/..."
+            placeholder="https://open.spotify.com/... or https://youtube.com/playlist?list=..."
             className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-xs transition-all"
             required
           />

@@ -122,22 +122,65 @@ class JobManager:
 
     def create_job(self, playlist: PlaylistMetadata) -> str:
         job_id = str(uuid.uuid4())
+        playlist_safe_name = self._sanitize_filename(playlist.playlist_title) or f"Playlist_{playlist.playlist_id}"
+        playlist_dir = settings.DOWNLOAD_DIR / playlist_safe_name
+        playlist_dir.mkdir(parents=True, exist_ok=True)
+
+        tracks_detail = []
+        completed_count = 0
+
+        for track in playlist.tracks:
+            existing = None
+            if playlist.skip_existing:
+                existing = self.find_existing_file(track, playlist_dir)
+
+            if existing:
+                existing_file, origin_desc = existing
+                completed_count += 1
+                tracks_detail.append({
+                    "track_id": track.id,
+                    "title": track.title,
+                    "artist": track.artist,
+                    "status": "completed",
+                    "matched_title": origin_desc,
+                    "match_score": 100.0,
+                    "file_path": str(existing_file.resolve()),
+                    "cached": True,
+                    "error": None,
+                })
+            else:
+                tracks_detail.append({
+                    "track_id": track.id,
+                    "title": track.title,
+                    "artist": track.artist,
+                    "status": "ready",
+                    "matched_title": None,
+                    "match_score": None,
+                    "file_path": None,
+                    "cached": False,
+                    "error": None,
+                })
+
+        total = playlist.total_tracks
+        initial_status = "SUCCESS" if (completed_count == total and total > 0) else "READY"
+        progress_pct = round((completed_count / total) * 100, 2) if total > 0 else 0.0
+
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
-                "status": "PENDING",
+                "status": initial_status,
                 "playlist_id": playlist.playlist_id,
                 "playlist_title": playlist.playlist_title,
                 "source": playlist.source,
                 "skip_existing": playlist.skip_existing,
                 "bitrate": playlist.bitrate or settings.AUDIO_BITRATE,
-                "total_tracks": playlist.total_tracks,
-                "completed_tracks": 0,
+                "total_tracks": total,
+                "completed_tracks": completed_count,
                 "failed_tracks": 0,
-                "progress_percentage": 0.0,
-                "current_track": "Queued for processing...",
-                "tracks_detail": [],
-                "playlist_dir": None,
+                "progress_percentage": progress_pct,
+                "current_track": "Playlist loaded and ready for download.",
+                "tracks_detail": tracks_detail,
+                "playlist_dir": str(playlist_dir.resolve()),
                 "playlist_metadata": playlist,
                 "created_at": datetime.utcnow().isoformat(),
                 "error": None,
@@ -166,6 +209,222 @@ class JobManager:
         with self._lock:
             if job_id in self._jobs:
                 self._jobs[job_id].update(kwargs)
+
+    def download_single_job_track(self, job_id: str, track_id: str):
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+
+        playlist = job.get("playlist_metadata")
+        if not playlist:
+            return
+
+        tracks_status = job.get("tracks_detail", [])
+        # match track
+        matched_idx = None
+        matched_track_obj = None
+        for i, st in enumerate(tracks_status):
+            if st.get("track_id") == track_id or (not track_id and i == 0):
+                matched_idx = i
+                break
+
+        if matched_idx is None:
+            return
+
+        for t in playlist.tracks:
+            if t.id == track_id or (not track_id and playlist.tracks):
+                matched_track_obj = t
+                break
+
+        if not matched_track_obj and matched_idx < len(playlist.tracks):
+            matched_track_obj = playlist.tracks[matched_idx]
+
+        if not matched_track_obj:
+            return
+
+        selected_bitrate = job.get("bitrate") or playlist.bitrate or settings.AUDIO_BITRATE
+        playlist_safe_name = self._sanitize_filename(playlist.playlist_title) or f"Playlist_{playlist.playlist_id}"
+        playlist_dir = settings.DOWNLOAD_DIR / playlist_safe_name
+        playlist_dir.mkdir(parents=True, exist_ok=True)
+
+        track_display = f"{matched_track_obj.artist} - {matched_track_obj.title}"
+        tracks_status[matched_idx]["status"] = "in_progress"
+        tracks_status[matched_idx]["error"] = None
+
+        self._update_job(
+            job_id,
+            current_track=f"Downloading: {track_display}...",
+            tracks_detail=tracks_status,
+        )
+
+        try:
+            track_result = self._process_single_track(
+                track=matched_track_obj,
+                playlist_dir=playlist_dir,
+                selected_bitrate=selected_bitrate,
+                skip_existing=False,
+            )
+            tracks_status[matched_idx].update(track_result)
+            logger.info(f"Downloaded individual track: {track_display} -> {playlist_safe_name}")
+        except Exception as e:
+            tracks_status[matched_idx]["status"] = "failed"
+            tracks_status[matched_idx]["error"] = str(e)
+            logger.error(f"Failed individual track download {track_display}: {e}")
+
+        completed_tracks = len([t for t in tracks_status if t.get("status") == "completed"])
+        failed_tracks = len([t for t in tracks_status if t.get("status") == "failed"])
+        total_tracks = job.get("total_tracks", len(tracks_status))
+        progress_pct = round((completed_tracks / total_tracks) * 100, 2) if total_tracks > 0 else 0.0
+
+        final_status = "SUCCESS" if (completed_tracks == total_tracks and total_tracks > 0) else "READY"
+
+        self._update_job(
+            job_id,
+            status=final_status,
+            completed_tracks=completed_tracks,
+            failed_tracks=failed_tracks,
+            progress_percentage=progress_pct,
+            current_track=f"Saved: {track_display}",
+            tracks_detail=tracks_status,
+        )
+
+    def start_all_downloads(self, job_id: str):
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+
+        playlist = job.get("playlist_metadata")
+        if not playlist:
+            return
+
+        selected_bitrate = job.get("bitrate") or playlist.bitrate or settings.AUDIO_BITRATE
+        playlist_safe_name = self._sanitize_filename(playlist.playlist_title) or f"Playlist_{playlist.playlist_id}"
+        playlist_dir = settings.DOWNLOAD_DIR / playlist_safe_name
+        playlist_dir.mkdir(parents=True, exist_ok=True)
+
+        tracks_status = job.get("tracks_detail", [])
+        total_tracks = playlist.total_tracks
+        tracks_map = {t.id: t for t in playlist.tracks}
+
+        self._update_job(
+            job_id,
+            status="PROGRESS",
+            current_track="Starting batch download...",
+        )
+
+        for index, track in enumerate(playlist.tracks, start=1):
+            st_idx = None
+            for i, s in enumerate(tracks_status):
+                if s.get("track_id") == track.id:
+                    st_idx = i
+                    break
+
+            if st_idx is None:
+                st_idx = index - 1
+
+            # if already completed, skip
+            if st_idx < len(tracks_status) and tracks_status[st_idx].get("status") == "completed":
+                continue
+
+            track_display = f"{track.artist} - {track.title}"
+            if st_idx < len(tracks_status):
+                tracks_status[st_idx]["status"] = "in_progress"
+                tracks_status[st_idx]["error"] = None
+
+            completed_now = len([t for t in tracks_status if t.get("status") == "completed"])
+            failed_now = len([t for t in tracks_status if t.get("status") == "failed"])
+
+            self._update_job(
+                job_id,
+                status="PROGRESS",
+                completed_tracks=completed_now,
+                failed_tracks=failed_now,
+                progress_percentage=round(((index - 1) / total_tracks) * 100, 2),
+                current_track=f"({index}/{total_tracks}) Downloading: {track_display}",
+                tracks_detail=tracks_status,
+            )
+
+            try:
+                track_result = self._process_single_track(
+                    track=track,
+                    playlist_dir=playlist_dir,
+                    selected_bitrate=selected_bitrate,
+                    skip_existing=playlist.skip_existing,
+                )
+                if st_idx < len(tracks_status):
+                    tracks_status[st_idx].update(track_result)
+            except Exception as e:
+                if st_idx < len(tracks_status):
+                    tracks_status[st_idx]["status"] = "failed"
+                    tracks_status[st_idx]["error"] = str(e)
+                logger.error(f"[{index}/{total_tracks}] Failed downloading {track_display}: {e}")
+
+            completed_now = len([t for t in tracks_status if t.get("status") == "completed"])
+            failed_now = len([t for t in tracks_status if t.get("status") == "failed"])
+
+            self._update_job(
+                job_id,
+                completed_tracks=completed_now,
+                failed_tracks=failed_now,
+                progress_percentage=round((index / total_tracks) * 100, 2),
+                current_track=f"Processed: {track_display}",
+                tracks_detail=tracks_status,
+            )
+
+        # auto-retry any failed tracks
+        failed_indices = [i for i, st in enumerate(tracks_status) if st.get("status") == "failed"]
+        if failed_indices:
+            for retry_round in range(1, 4):
+                remaining_failed = [i for i, st in enumerate(tracks_status) if st.get("status") == "failed"]
+                if not remaining_failed:
+                    break
+
+                self._update_job(
+                    job_id,
+                    current_track=f"Auto-retrying {len(remaining_failed)} failed track(s) (Round {retry_round}/3)...",
+                )
+
+                for idx in remaining_failed:
+                    st = tracks_status[idx]
+                    track_obj = tracks_map.get(st.get("track_id"))
+                    if not track_obj:
+                        continue
+
+                    track_display = f"{track_obj.artist} - {track_obj.title}"
+                    try:
+                        track_result = self._process_single_track(
+                            track=track_obj,
+                            playlist_dir=playlist_dir,
+                            selected_bitrate=selected_bitrate,
+                            skip_existing=False,
+                        )
+                        tracks_status[idx].update(track_result)
+                        self._update_job(
+                            job_id,
+                            completed_tracks=len([t for t in tracks_status if t.get("status") == "completed"]),
+                            failed_tracks=len([t for t in tracks_status if t.get("status") == "failed"]),
+                            tracks_detail=tracks_status,
+                            current_track=f"Recovered: {track_display}",
+                        )
+                    except Exception as err:
+                        tracks_status[idx]["error"] = str(err)
+
+        final_completed = len([t for t in tracks_status if t.get("status") == "completed"])
+        final_failed = len([t for t in tracks_status if t.get("status") == "failed"])
+        final_status = "SUCCESS" if final_failed == 0 else ("PARTIAL_SUCCESS" if final_completed > 0 else "FAILURE")
+
+        self._update_job(
+            job_id,
+            status=final_status,
+            completed_tracks=final_completed,
+            failed_tracks=final_failed,
+            progress_percentage=100.0,
+            current_track="Finished playlist processing.",
+            playlist_dir=str(playlist_dir.resolve()),
+            tracks_detail=tracks_status,
+        )
 
     def _process_single_track(
         self,

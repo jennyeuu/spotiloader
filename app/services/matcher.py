@@ -85,6 +85,21 @@ class YouTubeMusicMatcher:
         search_query = f"{track.artist} - {track.title}"
         candidates: List[Dict[str, Any]] = []
 
+        # direct candidate if track id is a YouTube video ID or URL
+        if track.id and not str(track.id).startswith("spotify") and not str(track.id).startswith("custom_"):
+            if len(track.id) == 11 or "youtube.com" in track.id or "youtu.be" in track.id:
+                vid_id = track.id if len(track.id) == 11 else None
+                direct_url = track.id if str(track.id).startswith("http") else f"https://www.youtube.com/watch?v={track.id}"
+                candidates.append({
+                    "video_id": vid_id,
+                    "title": track.title,
+                    "artist": track.artist,
+                    "duration_sec": track.duration_seconds,
+                    "score": 100.0,
+                    "type": "direct_youtube",
+                    "thumbnails": [{"url": track.cover_art_url}] if track.cover_art_url else [],
+                })
+
         try:
             # search official yt music tracks first
             song_results = self.ytmusic.search(search_query, filter="songs", limit=5)

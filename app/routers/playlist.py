@@ -10,6 +10,7 @@ from app.schemas.playlist import (
     JobStatusResponse,
 )
 from app.services.spotify_scraper import spotify_scraper
+from app.services.youtube_scraper import youtube_scraper
 from app.services.csv_parser import csv_parser
 from app.services.job_manager import job_manager
 
@@ -22,19 +23,26 @@ router = APIRouter(prefix="/api/playlist", tags=["Playlist"])
     "/submit-url",
     response_model=PlaylistSubmitResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Submit Spotify public URL (Supports skip_existing and compression bitrate)",
+    summary="Submit Spotify or YouTube public URL (Loads tracks ready for download)",
 )
 async def submit_playlist_url(
     payload: PlaylistUrlRequest,
-    background_tasks: BackgroundTasks,
 ):
     """
-    1. Scrapes Spotify track metadata directly from public web pages / anonymous web tokens.
-    2. Spawns a background task with optional duplicate prevention and compression bitrate ('320k', '192k', '128k').
-    3. Returns job_id for progress polling.
+    1. Detects Spotify vs YouTube URL.
+    2. Scrapes metadata directly from Spotify public web pages / YouTube without API keys.
+    3. Prepares tracks in 'ready' state so the user can download individually or all at once.
+    4. Returns job_id for progress polling and interaction.
     """
+    raw_url = payload.url.strip()
     try:
-        playlist_metadata = spotify_scraper.extract_from_url(payload.url)
+        if youtube_scraper.is_youtube_url(raw_url):
+            playlist_metadata = youtube_scraper.extract_from_url(raw_url)
+            source_type = "youtube"
+        else:
+            playlist_metadata = spotify_scraper.extract_from_url(raw_url)
+            source_type = "spotify"
+
         playlist_metadata.skip_existing = payload.skip_existing
         playlist_metadata.bitrate = payload.bitrate or "320k"
     except ValueError as e:
@@ -43,29 +51,28 @@ async def submit_playlist_url(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Error scraping Spotify playlist: {e}")
+        logger.error(f"Error scraping URL '{raw_url}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve metadata from Spotify: {e}",
+            detail=f"Failed to retrieve metadata from URL: {e}",
         )
 
     if not playlist_metadata.tracks:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No downloadable tracks found in the provided Spotify URL.",
+            detail="No downloadable tracks found in the provided URL.",
         )
 
     job_id = job_manager.create_job(playlist_metadata)
-    background_tasks.add_task(job_manager.process_playlist, job_id, playlist_metadata)
 
     return PlaylistSubmitResponse(
         job_id=job_id,
         playlist_title=playlist_metadata.playlist_title,
         total_tracks=playlist_metadata.total_tracks,
-        source="spotify",
+        source=source_type,
         skip_existing=payload.skip_existing,
         bitrate=payload.bitrate,
-        message="Spotify playlist metadata scraped and background download job started.",
+        message=f"{'YouTube' if source_type == 'youtube' else 'Spotify'} tracks loaded and ready for download.",
     )
 
 
@@ -76,14 +83,13 @@ async def submit_playlist_url(
     summary="Upload playlist CSV export (TuneMyMusic / Exportify / CSVMusic)",
 )
 async def submit_playlist_csv(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="CSV file containing playlist tracks"),
     playlist_name: str = Form(default="Imported CSV Playlist", description="Custom playlist title"),
     skip_existing: bool = Form(default=True, description="Skip downloading tracks that already exist"),
     bitrate: str = Form(default="320k", description="Audio compression bitrate: 320k, 192k, or 128k"),
 ):
     """
-    Accepts CSV exports from TuneMyMusic, Exportify, Soundiiz, or CSVMusic with compression bitrate.
+    Accepts CSV exports and loads tracks in ready state.
     """
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(
@@ -105,7 +111,6 @@ async def submit_playlist_csv(
         )
 
     job_id = job_manager.create_job(playlist_metadata)
-    background_tasks.add_task(job_manager.process_playlist, job_id, playlist_metadata)
 
     return PlaylistSubmitResponse(
         job_id=job_id,
@@ -114,8 +119,51 @@ async def submit_playlist_csv(
         source="csv",
         skip_existing=skip_existing,
         bitrate=bitrate,
-        message="CSV playlist parsed and background download job started.",
+        message="CSV playlist tracks loaded and ready for download.",
     )
+
+
+@router.post(
+    "/download-all/{job_id}",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Start batch download of all tracks in playlist",
+)
+async def download_all_tracks(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+):
+    job = job_manager._jobs.get(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job ID '{job_id}' not found.",
+        )
+
+    background_tasks.add_task(job_manager.start_all_downloads, job_id)
+    return job_manager.get_job_status(job_id)
+
+
+@router.post(
+    "/download-track/{job_id}/{track_id}",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Download a single track into the playlist folder",
+)
+async def download_single_playlist_track(
+    job_id: str,
+    track_id: str,
+    background_tasks: BackgroundTasks,
+):
+    job = job_manager._jobs.get(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job ID '{job_id}' not found.",
+        )
+
+    background_tasks.add_task(job_manager.download_single_job_track, job_id, track_id)
+    return job_manager.get_job_status(job_id)
 
 
 @router.get(
@@ -171,6 +219,12 @@ async def download_playlist_zip(job_id: str):
     job = job_manager._jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    if job.get("completed_tracks", 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No tracks have been downloaded yet. Please download at least one track before creating a ZIP.",
+        )
 
     playlist_dir_str = job.get("playlist_dir")
     if not playlist_dir_str or not Path(playlist_dir_str).exists():

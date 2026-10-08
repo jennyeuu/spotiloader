@@ -101,6 +101,47 @@ export const App: React.FC = () => {
     }
   };
 
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
+
+  const handleRetryFailed = async () => {
+    if (!currentJobId) return;
+    setIsRetrying(true);
+    addToast('Retrying failed tracks with alternative search sources...', 'info');
+    try {
+      const res = await fetch(`/api/playlist/retry-failed/${currentJobId}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Failed to trigger retry.');
+      }
+      const updated: JobStatusResponse = await res.json();
+      setJobStatus(updated);
+
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = window.setInterval(async () => {
+        try {
+          const pRes = await fetch(`/api/playlist/status/${currentJobId}`);
+          if (!pRes.ok) return;
+          const pData: JobStatusResponse = await pRes.json();
+          setJobStatus(pData);
+          if (pData.status === 'SUCCESS' || pData.status === 'PARTIAL_SUCCESS' || pData.status === 'FAILURE') {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (pData.status === 'SUCCESS') {
+              addToast('All failed tracks successfully recovered and tagged!', 'success');
+            }
+          }
+        } catch (err) {
+          console.error('Polling retry error:', err);
+        }
+      }, 1500);
+    } catch (err: any) {
+      addToast(err.message || 'Error triggering retry', 'error');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   // poll download job progress
   useEffect(() => {
     if (!currentJobId) return;
@@ -186,6 +227,8 @@ export const App: React.FC = () => {
             setCurrentJobId(null);
             setJobStatus(null);
           }}
+          onRetryFailed={handleRetryFailed}
+          isRetrying={isRetrying}
         />
 
         <BottomDock

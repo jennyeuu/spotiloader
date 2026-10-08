@@ -1,14 +1,22 @@
 import React from 'react';
 import type { JobStatusResponse, TrackDetail } from '../types';
-import { Download, CheckCircle2, AlertCircle, Clock, Zap, Archive, Music, X } from 'lucide-react';
+import { Download, CheckCircle2, AlertCircle, Clock, Zap, Archive, Music, X, RotateCcw } from 'lucide-react';
 
 interface ProgressMonitorProps {
   job: JobStatusResponse | null;
   playlistTitle: string;
   onDismiss?: () => void;
+  onRetryFailed?: () => void;
+  isRetrying?: boolean;
 }
 
-export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistTitle, onDismiss }) => {
+export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({
+  job,
+  playlistTitle,
+  onDismiss,
+  onRetryFailed,
+  isRetrying,
+}) => {
   if (!job) return null;
 
   const getStatusBadge = (status: JobStatusResponse['status']) => {
@@ -123,18 +131,30 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
           </div>
         )}
 
-        {job.completed_tracks > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          {job.failed_tracks > 0 && job.status !== 'PROGRESS' && onRetryFailed && (
+            <button
+              type="button"
+              onClick={onRetryFailed}
+              disabled={isRetrying}
+              className="inline-flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 px-4 py-2.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 disabled:opacity-50"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+              Retry Failed Songs ({job.failed_tracks})
+            </button>
+          )}
+
+          {job.completed_tracks > 0 && (
             <a
               href={`/api/playlist/download-zip/${job.job_id}`}
               download
-              className="inline-flex items-center gap-2 bg-[#0066ff] hover:bg-blue-600 text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+              className="ml-auto inline-flex items-center gap-2 bg-[#0066ff] hover:bg-blue-600 text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-md shadow-blue-500/20"
             >
               <Archive className="w-4 h-4" />
               Download All as ZIP (.zip)
             </a>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="neumorphic-card rounded-3xl p-6 border border-slate-100">

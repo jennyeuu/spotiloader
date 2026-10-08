@@ -81,7 +81,7 @@ class YouTubeMusicMatcher:
 
         return max(0.0, min(100.0, score))
 
-    def find_best_match(self, track: TrackMetadata) -> Tuple[str, Dict[str, Any]]:
+    def find_candidates(self, track: TrackMetadata) -> List[Tuple[str, Dict[str, Any]]]:
         search_query = f"{track.artist} - {track.title}"
         candidates: List[Dict[str, Any]] = []
 
@@ -118,7 +118,7 @@ class YouTubeMusicMatcher:
                     "thumbnails": res.get("thumbnails", []),
                 })
         except Exception as e:
-            logger.warning(f"YTMusic song search failed for '{search_query}': {e}")
+            logger.warning(f"ytmusic song search failed for '{search_query}': {e}")
 
         # fallback to standard video search
         try:
@@ -151,27 +151,58 @@ class YouTubeMusicMatcher:
                     "thumbnails": res.get("thumbnails", []),
                 })
         except Exception as e:
-            logger.warning(f"YTMusic video search failed: {e}")
+            logger.warning(f"ytmusic video search failed: {e}")
 
-        if not candidates:
-            # fallback query
-            return f"ytsearch1:{track.artist} - {track.title} audio", {
-                "score": 50.0,
-                "title": f"{track.artist} - {track.title}",
-                "video_id": None
-            }
+        result_list: List[Tuple[str, Dict[str, Any]]] = []
 
-        # pick highest score
-        candidates.sort(key=lambda x: x["score"], reverse=True)
-        best = candidates[0]
-        video_id = best.get("video_id")
-        target_url = f"https://www.youtube.com/watch?v={video_id}" if video_id else f"ytsearch1:{track.artist} - {track.title}"
+        if candidates:
+            # sort by best score first
+            candidates.sort(key=lambda x: x["score"], reverse=True)
+            for cand in candidates:
+                vid = cand.get("video_id")
+                if vid:
+                    url = f"https://www.youtube.com/watch?v={vid}"
+                    result_list.append((url, cand))
 
-        logger.info(
-            f"Matched '{track.artist} - {track.title}' -> '{best.get('artist')} - {best.get('title')}' "
-            f"(Score: {best.get('score'):.1f}, Type: {best.get('type')})"
-        )
-        return target_url, best
+        # add ytsearch fallback queries in case direct video ids fail
+        clean_art = self.clean_text(track.artist)
+        clean_tit = self.clean_text(track.title)
+
+        fallback_queries = [
+            f"ytsearch3:{clean_art} - {clean_tit} audio",
+            f"ytsearch3:{clean_art} - {clean_tit} official audio",
+            f"ytsearch3:{track.artist} - {track.title} audio",
+            f"ytsearch3:{clean_art} {clean_tit}",
+            f"ytsearch3:{clean_tit} {clean_art}",
+            f"ytsearch3:{clean_tit} audio",
+        ]
+
+        for q in fallback_queries:
+            result_list.append((q, {
+                "score": 60.0,
+                "title": f"{track.artist} - {track.title} (Search: {q})",
+                "video_id": None,
+                "type": "search_fallback",
+            }))
+
+        return result_list
+
+    def find_best_match(self, track: TrackMetadata) -> Tuple[str, Dict[str, Any]]:
+        candidates = self.find_candidates(track)
+        if candidates:
+            best_url, best_info = candidates[0]
+            logger.info(
+                f"matched '{track.artist} - {track.title}' -> '{best_info.get('artist', '')} - {best_info.get('title', '')}' "
+                f"(Score: {best_info.get('score', 0):.1f})"
+            )
+            return best_url, best_info
+
+        return f"ytsearch1:{track.artist} - {track.title} audio", {
+            "score": 50.0,
+            "title": f"{track.artist} - {track.title}",
+            "video_id": None,
+        }
 
 
 music_matcher = YouTubeMusicMatcher()
+

@@ -136,6 +136,30 @@ async def get_job_status(job_id: str):
     return job_status
 
 
+@router.post(
+    "/retry-failed/{job_id}",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Retry failed tracks for a playlist job",
+)
+async def retry_failed_tracks(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Spawns background retries specifically for tracks that failed in the given job.
+    """
+    job = job_manager._jobs.get(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job ID '{job_id}' not found.",
+        )
+
+    background_tasks.add_task(job_manager.retry_failed_tracks, job_id)
+    return job_manager.get_job_status(job_id)
+
+
 @router.get(
     "/download-zip/{job_id}",
     summary="Download all completed MP3 tracks as a ZIP file",

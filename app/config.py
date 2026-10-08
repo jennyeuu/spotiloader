@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
-    # Audio Download & Processing
     DOWNLOAD_DIR: Path = Path("./downloads")
     AUDIO_BITRATE: str = "320k"
     AUDIO_FORMAT: str = "mp3"
@@ -36,5 +35,5 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure download directory exists
+# make sure download folder is ready
 settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)

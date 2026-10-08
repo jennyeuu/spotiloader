@@ -1,4 +1,3 @@
-import os
 import shutil
 import logging
 from pathlib import Path
@@ -162,7 +161,7 @@ async def download_playlist_zip(job_id: str):
     clean_title = job_manager._sanitize_filename(job.get("playlist_title") or playlist_dir.name) or "playlist"
     zip_base_name = str(zip_output_dir / f"{clean_title}_{job_id[:8]}")
 
-    # Create ZIP archive containing the playlist folder
+    # zip up the whole playlist folder
     zip_file_path = shutil.make_archive(
         base_name=zip_base_name,
         format="zip",

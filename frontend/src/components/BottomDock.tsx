@@ -10,7 +10,6 @@ interface BottomDockProps {
 export const BottomDock: React.FC<BottomDockProps> = ({ activeTab, onTabChange, onActionClick }) => {
   return (
     <nav className="flex items-center justify-between px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full shadow-lg shadow-slate-900/5 border border-slate-100 max-w-sm mx-auto mt-8">
-      {/* Home (URL) */}
       <button
         type="button"
         onClick={() => onTabChange('url')}
@@ -22,7 +21,6 @@ export const BottomDock: React.FC<BottomDockProps> = ({ activeTab, onTabChange, 
         <span className="text-[10px] font-bold">URL</span>
       </button>
 
-      {/* Files (CSV) */}
       <button
         type="button"
         onClick={() => onTabChange('csv')}
@@ -34,7 +32,6 @@ export const BottomDock: React.FC<BottomDockProps> = ({ activeTab, onTabChange, 
         <span className="text-[10px] font-bold">CSV</span>
       </button>
 
-      {/* Center Floating Plus Button */}
       <div className="-mt-8">
         <button
           type="button"
@@ -46,7 +43,6 @@ export const BottomDock: React.FC<BottomDockProps> = ({ activeTab, onTabChange, 
         </button>
       </div>
 
-      {/* Status / Alerts */}
       <button
         type="button"
         onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
@@ -56,7 +52,6 @@ export const BottomDock: React.FC<BottomDockProps> = ({ activeTab, onTabChange, 
         <span className="text-[10px] font-bold">Status</span>
       </button>
 
-      {/* Info / GitHub */}
       <a
         href="https://github.com/angall1/CSVMusic"
         target="_blank"

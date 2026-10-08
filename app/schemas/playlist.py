@@ -37,7 +37,7 @@ class PlaylistMetadata(BaseModel):
     playlist_id: str
     playlist_title: str
     owner: Optional[str] = "Unknown"
-    source: str = "spotify"  # "spotify", "csv", "custom"
+    source: str = "spotify"  # spotify, csv, or custom
     total_tracks: int
     tracks: List[TrackMetadata]
     skip_existing: bool = True
@@ -54,22 +54,9 @@ class PlaylistSubmitResponse(BaseModel):
     message: str = "Download job queued successfully"
 
 
-class TrackProgress(BaseModel):
-    track_id: Optional[str] = None
-    title: str
-    artist: str
-    status: str  # "pending", "downloading", "processing", "completed", "failed", "cached"
-    matched_video_id: Optional[str] = None
-    matched_title: Optional[str] = None
-    match_score: Optional[float] = None
-    file_path: Optional[str] = None
-    cached: bool = False
-    error: Optional[str] = None
-
-
 class JobStatusResponse(BaseModel):
     job_id: str
-    status: str  # "PENDING", "PROGRESS", "SUCCESS", "FAILURE", "PARTIAL_SUCCESS"
+    status: str  # pending, progress, success, failure, partial_success
     total_tracks: int
     completed_tracks: int
     failed_tracks: int

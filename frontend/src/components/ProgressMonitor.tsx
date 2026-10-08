@@ -70,11 +70,9 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
 
   return (
     <section className="mt-6 space-y-4 animate-fade-in">
-      {/* Featured Active Progress Card (Matching the exact video meeting card in reference image) */}
       <div className="neumorphic-card rounded-3xl p-6 border border-slate-100">
         <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-3.5">
-            {/* Soft Blue Icon Container */}
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs border border-blue-100/50">
               <Music className="w-6 h-6 stroke-[2.2]" />
             </div>
@@ -106,7 +104,6 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
           </div>
         </div>
 
-        {/* Solid Blue Progress Line (Matching reference image) */}
         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
           <div
             className="h-full bg-[#0066ff] rounded-full transition-all duration-500"
@@ -114,7 +111,6 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
           />
         </div>
 
-        {/* Live Active Track Banner */}
         {job.current_track && job.status === 'PROGRESS' && (
           <div className="flex items-center gap-2.5 pt-2 text-xs font-semibold text-blue-600 truncate">
             <div className="flex items-end gap-0.5 h-3">
@@ -127,7 +123,6 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
           </div>
         )}
 
-        {/* Download ZIP Action */}
         {job.completed_tracks > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
             <a
@@ -142,7 +137,6 @@ export const ProgressMonitor: React.FC<ProgressMonitorProps> = ({ job, playlistT
         )}
       </div>
 
-      {/* Detailed Tracklist Table */}
       <div className="neumorphic-card rounded-3xl p-6 border border-slate-100">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-800 text-sm">Tracklist Details</h3>

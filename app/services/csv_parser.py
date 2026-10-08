@@ -18,7 +18,7 @@ class CSVPlaylistParser:
         reader = csv.DictReader(io.StringIO(csv_content))
         tracks: List[TrackMetadata] = []
 
-        # Normalize column header lookup (lowercase, stripped)
+        # normalize header keys
         fieldnames = [f.strip().lower() for f in (reader.fieldnames or [])]
 
         def get_val(row: dict, keys: list[str]) -> str:
@@ -47,7 +47,7 @@ class CSVPlaylistParser:
                             duration_seconds = int(parts[0]) * 60 + int(parts[1])
                     else:
                         d_val = float(duration_str)
-                        # If value is large, assume ms
+                        # convert ms to seconds if big number
                         duration_seconds = int(d_val / 1000) if d_val > 1000 else int(d_val)
                 except ValueError:
                     pass

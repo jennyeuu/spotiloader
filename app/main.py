@@ -13,7 +13,6 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Enable CORS for frontend clients (Vite dev server http://localhost:5173)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API routes
 app.include_router(playlist_router)
 
 
@@ -35,7 +33,7 @@ async def health_check():
     }
 
 
-# Serve built React frontend if available, else static folder
+# serve frontend ui if built
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

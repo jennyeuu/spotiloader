@@ -4,7 +4,6 @@ from app.schemas.playlist import (
     TrackMetadata,
     PlaylistMetadata,
     JobStatusResponse,
-    TrackProgress,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "TrackMetadata",
     "PlaylistMetadata",
     "JobStatusResponse",
-    "TrackProgress",
 ]

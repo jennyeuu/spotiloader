@@ -1,7 +1,7 @@
 import re
 import json
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 import httpx
 from bs4 import BeautifulSoup
 
@@ -257,13 +257,9 @@ class SpotifyScraperService:
         raise ValueError(f"Could not extract track metadata from Spotify for {entity_type}/{entity_id}")
 
     def extract_from_url(self, url: str) -> PlaylistMetadata:
-        """
-        High-level method: Tries anonymous Web API token first (supports full pagination),
-        and falls back to embed scraping.
-        """
         entity_type, entity_id = self.parse_spotify_url(url)
 
-        # 1. Try public anonymous web token
+        # grab web player token first for full pagination
         token = self.get_anonymous_token()
         if token:
             meta = self.fetch_via_web_api(entity_type, entity_id, token)
@@ -271,7 +267,7 @@ class SpotifyScraperService:
                 logger.info(f"Successfully scraped {len(meta.tracks)} tracks via Spotify Web API")
                 return meta
 
-        # 2. Fallback to Spotify embed scraper
+        # fallback to embed scraping
         logger.info(f"Falling back to Spotify embed scraper for {entity_type}/{entity_id}")
         return self.fetch_via_embed_scraper(entity_type, entity_id)
 

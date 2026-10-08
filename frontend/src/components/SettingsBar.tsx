@@ -17,7 +17,6 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
 }) => {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-6 pt-5 border-t border-slate-100">
-      {/* Bitrate Selector */}
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold text-slate-500">Quality:</span>
         <div className="flex items-center p-1 bg-[#f1f4f9] rounded-full border border-slate-200/60">

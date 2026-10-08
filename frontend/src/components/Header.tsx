@@ -4,7 +4,6 @@ import { Music, Disc, Sparkles, RefreshCw } from 'lucide-react';
 export const Header: React.FC = () => {
   return (
     <header className="text-center mb-10">
-      {/* Top Brand Tag */}
       <div className="flex items-center justify-between max-w-2xl mx-auto mb-6 px-2">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-base shadow-md shadow-blue-500/20">
@@ -24,7 +23,6 @@ export const Header: React.FC = () => {
         Convert Spotify playlists & CSV exports into 320kbps MP3s with full ID3 tags and cover artwork.
       </p>
 
-      {/* Feature Badges */}
       <div className="flex flex-wrap justify-center gap-2.5 mt-6">
         <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-slate-200/80 text-slate-600 text-xs font-semibold shadow-xs">
           <Music className="w-3.5 h-3.5 text-blue-600" />

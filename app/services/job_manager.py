@@ -32,31 +32,23 @@ class JobManager:
     def _sanitize_filename(self, name: str) -> str:
         if not name:
             return ""
-        # Remove characters that are illegal on Windows/Linux filesystems
+        # strip characters that break file systems
         cleaned = re.sub(r'[\\/*?:"<>|]', "", name)
-        # Collapse multiple whitespace characters
         cleaned = re.sub(r'\s+', " ", cleaned).strip()
-        # Remove leading/trailing dots
         cleaned = cleaned.strip(".")
         return cleaned
 
     def find_existing_file(self, track: TrackMetadata, playlist_dir: Path) -> Optional[Tuple[Path, str]]:
-        """
-        Intelligently checks if a valid MP3 file for this track already exists:
-        1. In the current playlist directory.
-        2. Across ANY previously downloaded playlist directory (using fuzzy title/artist matching and ID3 tags).
-        Returns (file_path, origin_description) if found, otherwise None.
-        """
         safe_artist = self._sanitize_filename(track.artist)
         safe_title = self._sanitize_filename(track.title)
         expected_name = f"{safe_artist} - {safe_title}.mp3"
 
-        # 1. Check current playlist directory
+        # check local playlist folder first
         local_file = playlist_dir / expected_name
         if local_file.exists() and local_file.stat().st_size > 50000:
             return local_file, "Existing track in playlist"
 
-        # 2. Check all subdirectories in DOWNLOAD_DIR
+        # look through all other playlist folders
         src_clean_title = music_matcher.clean_text(track.title)
         src_clean_artist = music_matcher.clean_text(track.artist)
 
@@ -64,14 +56,14 @@ class JobManager:
             for candidate in settings.DOWNLOAD_DIR.rglob("*.mp3"):
                 if not candidate.is_file() or candidate.stat().st_size <= 50000:
                     continue
-                # Skip zips folder or files in current playlist_dir
+                # skip zips and current folder
                 if "zips" in candidate.parts or candidate.parent.resolve() == playlist_dir.resolve():
                     continue
 
                 origin_folder = candidate.parent.name
                 cand_stem = candidate.stem
 
-                # A. Match via filename (e.g. "Artist - Title.mp3")
+                # try matching by filename
                 if " - " in cand_stem:
                     c_art, c_tit = cand_stem.split(" - ", 1)
                     c_clean_art = music_matcher.clean_text(c_art)
@@ -90,7 +82,7 @@ class JobManager:
                         )
                         return dest_file, f"Reused from playlist '{origin_folder}'"
 
-                # B. Match via ID3 metadata tags
+                # fallback to checking id3 tags
                 try:
                     audio = MP3(candidate)
                     if audio.tags:
@@ -175,10 +167,6 @@ class JobManager:
                 self._jobs[job_id].update(kwargs)
 
     def process_playlist(self, job_id: str, playlist: PlaylistMetadata):
-        """
-        Background worker processing all tracks in playlist.
-        Reuses cached audio when skip_existing is enabled and applies selected bitrate.
-        """
         selected_bitrate = playlist.bitrate or settings.AUDIO_BITRATE
 
         self._update_job(
@@ -192,7 +180,7 @@ class JobManager:
         if not playlist_safe_name:
             playlist_safe_name = f"Playlist_{playlist.playlist_id}"
         
-        # Dedicated folder per playlist
+        # dedicated folder per playlist
         playlist_dir = settings.DOWNLOAD_DIR / playlist_safe_name
         playlist_dir.mkdir(parents=True, exist_ok=True)
 
@@ -225,7 +213,7 @@ class JobManager:
             )
 
             try:
-                # Check for existing downloaded file if skip_existing is enabled
+                # check for cached file across playlists
                 existing_match = None
                 if playlist.skip_existing:
                     existing_match = self.find_existing_file(track, playlist_dir)
@@ -240,19 +228,19 @@ class JobManager:
                     current_status["cached"] = True
                     current_status["file_path"] = str(existing_file.resolve())
                 else:
-                    # 1. Match track to best YouTube Music candidate using scoring algorithm
+                    # find best yt match
                     target_url, match_info = music_matcher.find_best_match(track)
                     current_status["matched_title"] = match_info.get("title")
                     current_status["match_score"] = match_info.get("score")
 
-                    # 2. Download audio stream via yt-dlp
+                    # grab audio stream
                     raw_audio_path, yt_info = youtube_downloader.download_audio(
                         target_url=target_url,
                         track=track,
                         output_dir=playlist_dir,
                     )
 
-                    # 3. Transcode to MP3 with requested compression bitrate via FFmpeg
+                    # convert to mp3
                     mp3_path = playlist_dir / f"{raw_audio_path.stem}.mp3"
                     final_mp3 = audio_processor.convert_to_mp3(
                         input_file=raw_audio_path,
@@ -260,7 +248,7 @@ class JobManager:
                         bitrate=selected_bitrate,
                     )
 
-                    # 4. Inject ID3 tags and cover art
+                    # tag metadata and cover art
                     if not track.cover_art_url and match_info.get("thumbnails"):
                         thumbs = match_info["thumbnails"]
                         if thumbs:

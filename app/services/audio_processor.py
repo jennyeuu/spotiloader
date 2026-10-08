@@ -1,4 +1,3 @@
-import os
 import logging
 import subprocess
 from pathlib import Path
@@ -44,12 +43,12 @@ class AudioProcessor:
 
         cmd = [
             self.ffmpeg_path,
-            "-y",  # Overwrite output without asking
+            "-y",
             "-i", str(input_file),
-            "-vn",  # Strip video stream if any
+            "-vn",
             "-acodec", "libmp3lame",
             "-b:a", bitrate,
-            "-ar", "44100",  # 44.1 kHz sampling rate
+            "-ar", "44100",
             str(output_file),
         ]
 
@@ -65,7 +64,7 @@ class AudioProcessor:
             logger.error(f"FFmpeg error: {result.stderr}")
             raise RuntimeError(f"FFmpeg conversion failed: {result.stderr}")
 
-        # Remove source file if different from output
+        # clean up raw source file
         if input_file.resolve() != output_file.resolve() and input_file.exists():
             try:
                 input_file.unlink()
@@ -75,9 +74,6 @@ class AudioProcessor:
         return output_file
 
     def download_cover_art(self, url: Optional[str]) -> Optional[bytes]:
-        """
-        Fetches cover art image bytes from Spotify image CDN.
-        """
         if not url:
             return None
         try:
@@ -96,10 +92,6 @@ class AudioProcessor:
         metadata: TrackMetadata,
         cover_image_bytes: Optional[bytes] = None
     ) -> None:
-        """
-        Injects ID3v2.3 / ID3v2.4 tags into the MP3 file using Mutagen.
-        Sets Title, Artists, Album, Album Artist, Track Number, Year, ISRC, and APIC cover art.
-        """
         if not mp3_path.exists():
             raise FileNotFoundError(f"MP3 file not found for tagging: {mp3_path}")
 
@@ -109,65 +101,56 @@ class AudioProcessor:
             audio = MP3(str(mp3_path))
             audio.add_tags()
 
-        # Clear existing tags if needed or update directly
         if audio.tags is None:
             audio.add_tags()
 
-        # 1. Track Title
+        # write id3 tags
         if metadata.title:
             audio.tags.add(TIT2(encoding=3, text=metadata.title))
 
-        # 2. Track Artist
         if metadata.artist:
             audio.tags.add(TPE1(encoding=3, text=metadata.artist))
 
-        # 3. Album Name
         if metadata.album:
             audio.tags.add(TALB(encoding=3, text=metadata.album))
 
-        # 4. Album Artist
         if metadata.album_artist:
             audio.tags.add(TPE2(encoding=3, text=metadata.album_artist))
 
-        # 5. Track Number & Total Tracks (format: "5/12")
         track_num_str = str(metadata.track_number) if metadata.track_number else "1"
         if metadata.total_tracks:
             track_num_str = f"{track_num_str}/{metadata.total_tracks}"
         audio.tags.add(TRCK(encoding=3, text=track_num_str))
 
-        # 6. Disc Number (format: "1/1")
         if metadata.disc_number:
             audio.tags.add(TPOS(encoding=3, text=str(metadata.disc_number)))
 
-        # 7. Release Date / Year
         if metadata.release_date:
             audio.tags.add(TDRC(encoding=3, text=metadata.release_date))
 
-        # 8. ISRC Code
         if metadata.isrc:
             audio.tags.add(TSRC(encoding=3, text=metadata.isrc))
 
-        # 9. Album Cover Art (APIC)
         if not cover_image_bytes and metadata.cover_art_url:
             cover_image_bytes = self.download_cover_art(metadata.cover_art_url)
 
         if cover_image_bytes:
-            # Determine MIME type (typically image/jpeg for Spotify)
+            # embed cover art
             mime = "image/jpeg"
             if cover_image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
                 mime = "image/png"
 
             audio.tags.add(
                 APIC(
-                    encoding=3,  # UTF-8
+                    encoding=3,
                     mime=mime,
-                    type=3,  # 3 is front cover
+                    type=3,
                     desc="Cover",
                     data=cover_image_bytes,
                 )
             )
 
-        audio.save(v2_version=3)  # Save as ID3v2.3 for broad player compatibility
+        audio.save(v2_version=3)
         logger.info(f"Successfully tagged MP3: {mp3_path.name}")
 
 

@@ -101,7 +101,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Poll Job Status
+  // poll download job progress
   useEffect(() => {
     if (!currentJobId) return;
 
@@ -133,13 +133,10 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6">
-      {/* Expanded Container Width for balanced spacious layout */}
       <div className="max-w-3xl sm:max-w-4xl mx-auto">
         <Header />
 
-        {/* Main White Neumorphic Card (Wide, spacious) */}
         <main className="neumorphic-card rounded-[36px] p-8 sm:p-12 border border-white">
-          {/* Tab Switcher */}
           <div className="flex items-center gap-2 p-1.5 bg-[#f1f4f9] rounded-full border border-slate-200/60 mb-8 max-w-md mx-auto">
             <button
               type="button"
@@ -168,14 +165,12 @@ export const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Active Tab Panel */}
           {activeTab === 'url' ? (
             <UrlInputForm onSubmit={handleUrlSubmit} isLoading={isLoading} />
           ) : (
             <CsvDropzone onSubmit={handleCsvSubmit} isLoading={isLoading} />
           )}
 
-          {/* Quality & Cache Settings */}
           <SettingsBar
             bitrate={bitrate}
             onBitrateChange={handleBitrateChange}
@@ -184,7 +179,6 @@ export const App: React.FC = () => {
           />
         </main>
 
-        {/* Real-Time Progress Monitor Card */}
         <ProgressMonitor
           job={jobStatus}
           playlistTitle={playlistTitle}
@@ -194,7 +188,6 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Bottom Floating Navigation Dock */}
         <BottomDock
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -204,7 +197,6 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Footer Subtext */}
         <div className="flex items-center justify-between text-xs font-semibold text-slate-400 mt-8 px-4">
           <span>spotiloader.app</span>
           <span>DRM-Free Music Downloader</span>

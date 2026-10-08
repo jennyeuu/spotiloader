@@ -46,7 +46,6 @@ export const CsvDropzone: React.FC<CsvDropzoneProps> = ({ onSubmit, isLoading, o
 
   return (
     <div>
-      {/* Upload Box (Matches the exact rounded dashed container and 3D blue sphere) */}
       <div
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => {
@@ -73,7 +72,6 @@ export const CsvDropzone: React.FC<CsvDropzoneProps> = ({ onSubmit, isLoading, o
           Drop your playlist CSV here
         </div>
 
-        {/* 3D Floating Blue Sphere */}
         <div className="w-20 h-20 rounded-full sphere-glow text-blue-600 flex items-center justify-center mx-auto mb-6 animate-sphere transition-transform">
           <Upload className="w-8 h-8 stroke-[2.5]" />
         </div>
@@ -91,7 +89,6 @@ export const CsvDropzone: React.FC<CsvDropzoneProps> = ({ onSubmit, isLoading, o
         )}
       </div>
 
-      {/* Input Name & Action Buttons */}
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         {selectedFile && (
           <input

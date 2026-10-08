@@ -19,21 +19,16 @@ class YouTubeMusicMatcher:
     """
 
     def __init__(self):
-        # Initialize public YTMusic client (no auth required)
         self.ytmusic = YTMusic()
 
     @staticmethod
     def clean_text(text: str) -> str:
-        """Strips noise, punctuation, and common suffixes."""
         if not text:
             return ""
-        # Remove (feat. ...), [feat. ...], (with ...), etc.
+        # strip noisy tags like feat, remaster, official video
         text = re.sub(r"[\(\[](?:feat|ft|with)\.?\s+[^)\]]+[\)\]]", "", text, flags=re.IGNORECASE)
-        # Remove (Remastered...), (2020 Remaster), etc.
         text = re.sub(r"[\(\[](?:(?:\d{4}\s+)?Remaster(?:ed)?|Deluxe|Bonus\s+Track)[\)\]]", "", text, flags=re.IGNORECASE)
-        # Remove (Official Video), [Official Audio], (Lyrics), etc.
         text = re.sub(r"[\(\[](?:Official\s+(?:Audio|Video|Music\s+Video)|Lyrics?|Audio)[\)\]]", "", text, flags=re.IGNORECASE)
-        # Remove punctuation and normalize whitespace
         text = re.sub(r"[^\w\s]", " ", text)
         return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -45,68 +40,58 @@ class YouTubeMusicMatcher:
         candidate_duration_sec: Optional[int],
         is_official_song: bool = False,
     ) -> float:
-        """
-        Calculates match score between 0.0 and 100.0 based on CSVMusic scoring rules.
-        """
         src_clean_title = self.clean_text(source_track.title)
         cand_clean_title = self.clean_text(candidate_title)
 
         src_clean_artist = self.clean_text(source_track.artist)
         cand_clean_artist = self.clean_text(candidate_artist)
 
-        # 1. Title Similarity (0 - 45 pts)
+        # fuzzy title & artist match
         title_sim = fuzz.token_set_ratio(src_clean_title, cand_clean_title)
         title_score = (title_sim / 100.0) * 45.0
 
-        # 2. Artist Similarity (0 - 35 pts)
         artist_sim = fuzz.token_set_ratio(src_clean_artist, cand_clean_artist)
         artist_score = (artist_sim / 100.0) * 35.0
 
         score = title_score + artist_score
 
-        # 3. Official YouTube Music Song Category Bonus (+10 pts)
         if is_official_song:
             score += 10.0
 
-        # 4. Duration Penalty (crucial: protects against 7-min music videos with skits)
+        # penalize big duration differences to avoid video skits
         if source_track.duration_seconds and candidate_duration_sec:
             duration_diff = abs(source_track.duration_seconds - candidate_duration_sec)
             if duration_diff <= 3:
-                score += 10.0  # Exact match bonus
+                score += 10.0
             elif duration_diff <= 8:
                 score += 5.0
             elif duration_diff > 25:
-                score -= 35.0  # Severe penalty for large duration disparity
+                score -= 35.0
             elif duration_diff > 12:
                 score -= 15.0
 
-        # 5. Unwanted Version Penalty (live, acoustic, remix, karaoke, cover)
+        # penalize live, acoustic, or karaoke versions if not requested
         unwanted_keywords = ["live", "acoustic", "cover", "karaoke", "tribute", "instrumental", "remix"]
         src_lower = source_track.title.lower()
         cand_lower = candidate_title.lower()
 
         for kw in unwanted_keywords:
             if kw in cand_lower and kw not in src_lower:
-                score -= 25.0  # Penalize mismatched version
+                score -= 25.0
 
         return max(0.0, min(100.0, score))
 
     def find_best_match(self, track: TrackMetadata) -> Tuple[str, Dict[str, Any]]:
-        """
-        Searches YouTube Music songs & videos, evaluates candidates, and returns the highest-scoring match.
-        Returns (video_url, match_info).
-        """
         search_query = f"{track.artist} - {track.title}"
         candidates: List[Dict[str, Any]] = []
 
         try:
-            # 1. Search YouTube Music Songs (Audio tracks with high metadata accuracy)
+            # search official yt music tracks first
             song_results = self.ytmusic.search(search_query, filter="songs", limit=5)
             for res in song_results:
                 artists = [a.get("name", "") for a in res.get("artists", [])]
                 artist_name = ", ".join(artists) if artists else ""
                 
-                # Parse duration string "3:45"
                 dur_str = res.get("duration")
                 dur_sec = None
                 if dur_str and ":" in dur_str:
@@ -135,7 +120,7 @@ class YouTubeMusicMatcher:
         except Exception as e:
             logger.warning(f"YTMusic song search failed for '{search_query}': {e}")
 
-        # 2. Search YouTube Music Videos (Fallback)
+        # fallback to standard video search
         try:
             video_results = self.ytmusic.search(search_query, filter="videos", limit=5)
             for res in video_results:
@@ -169,14 +154,14 @@ class YouTubeMusicMatcher:
             logger.warning(f"YTMusic video search failed: {e}")
 
         if not candidates:
-            # Fallback direct query URL
+            # fallback query
             return f"ytsearch1:{track.artist} - {track.title} audio", {
                 "score": 50.0,
                 "title": f"{track.artist} - {track.title}",
                 "video_id": None
             }
 
-        # Pick candidate with highest matching score
+        # pick highest score
         candidates.sort(key=lambda x: x["score"], reverse=True)
         best = candidates[0]
         video_id = best.get("video_id")

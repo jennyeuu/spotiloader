@@ -15,7 +15,6 @@ class YouTubeDownloader:
         self.download_dir = download_dir
 
     def _sanitize_filename(self, name: str) -> str:
-        """Removes illegal filesystem characters."""
         return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
     def download_audio(
@@ -24,10 +23,6 @@ class YouTubeDownloader:
         track: TrackMetadata,
         output_dir: Optional[Path] = None,
     ) -> Tuple[Path, Dict[str, Any]]:
-        """
-        Downloads the best audio stream for the given matched URL/ID using yt-dlp.
-        Returns the downloaded audio file path and extractor info.
-        """
         target_dir = output_dir or self.download_dir
         target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -64,7 +59,7 @@ class YouTubeDownloader:
                 downloaded_file = Path(ydl.prepare_filename(info))
 
                 if not downloaded_file.exists():
-                    # Check for file matching stem in target_dir
+                    # check if the file got saved under an alternate extension
                     matching = list(target_dir.glob(f"{safe_artist} - {safe_title}.*"))
                     if matching:
                         downloaded_file = matching[0]

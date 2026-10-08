@@ -29,13 +29,11 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
 
   return (
     <div>
-      {/* Dashed Link Box */}
       <div className="border-2 border-dashed border-slate-200/90 rounded-3xl p-8 sm:p-10 text-center bg-[#fafbfc] transition-all">
         <div className="font-bold text-slate-800 text-lg mb-6 tracking-tight">
           Paste Spotify URL or URI here
         </div>
 
-        {/* 3D Floating Blue Sphere with Link Icon */}
         <div className="w-20 h-20 rounded-full sphere-glow text-blue-600 flex items-center justify-center mx-auto mb-6 animate-sphere">
           <Link2 className="w-8 h-8 stroke-[2.5]" />
         </div>
@@ -44,7 +42,6 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
           Paste any public Spotify <strong className="text-slate-600">Playlist</strong>, <strong className="text-slate-600">Album</strong>, or <strong className="text-slate-600">Track</strong> link.
         </div>
 
-        {/* URL Input */}
         <div className="relative max-w-md mx-auto">
           <input
             type="text"
@@ -57,7 +54,6 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
         </div>
       </div>
 
-      {/* Quick Samples */}
       <div className="flex items-center justify-center flex-wrap gap-2 mt-4 text-xs text-slate-400">
         <span className="flex items-center gap-1 font-semibold text-slate-500">
           <Sparkles className="w-3.5 h-3.5 text-blue-500" />
@@ -75,7 +71,6 @@ export const UrlInputForm: React.FC<UrlInputFormProps> = ({ onSubmit, isLoading,
         ))}
       </div>
 
-      {/* Actions matching Cancel & Upload pills */}
       <div className="grid grid-cols-2 gap-3 mt-6">
         <button
           type="button"
